@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content="Turns Singapore Sign Language into text with your camera. Runs entirely on your device." />
+    <title>SgSL to text</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='1' y='13' width='15' height='6' rx='3' fill='%23D42E12'/%3E%3Crect x='16' y='13' width='15' height='6' rx='3' fill='%239900AA'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23fff' stroke='%231B2733' stroke-width='3'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 64 32" aria-hidden="true">
+          <rect x="1" y="12" width="31" height="8" rx="4" fill="#D42E12" />
+          <rect x="32" y="12" width="31" height="8" rx="4" fill="#9900AA" />
+          <circle cx="32" cy="16" r="10" fill="#fff" stroke="#1B2733" stroke-width="4" />
+        </svg>
+        <h1>SgSL to text</h1>
+      </div>
+      <div class="mode" role="radiogroup" aria-label="What to recognise">
+        <button type="button" role="radio" data-mode="auto">Letters and signs</button>
+        <button type="button" role="radio" data-mode="fingerspell">Fingerspelling</button>
+        <button type="button" role="radio" data-mode="signs">Signs only</button>
+      </div>
+      <p class="status" id="status" role="status">Camera off</p>
+    </header>
+
+    <main class="layout">
+      <section class="stage-col" aria-label="Camera">
+        <div class="stage" id="stage">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay" aria-hidden="true"></canvas>
+          <div class="stage-empty" id="stage-empty">
+            <p class="stage-lead">Sign to the camera and read it back as text.</p>
+            <p class="stage-note">Video is processed on this device and never uploaded.</p>
+            <button type="button" class="primary" id="start">Start camera</button>
+            <p class="stage-error" id="start-error" role="alert"></p>
+          </div>
+          <div class="countdown" id="countdown" hidden></div>
+          <p class="rec-badge" id="rec-badge" hidden>Recording</p>
+        </div>
+
+        <div class="rail" id="rail" aria-label="Signing state">
+          <span class="rail-line" aria-hidden="true"></span>
+          <div class="station" data-phase="rest">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="station-name">Resting</span>
+          </div>
+          <div class="station" data-phase="moving">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="station-name">Moving</span>
+          </div>
+          <div class="station" data-phase="hold">
+            <span class="dot" aria-hidden="true">
+              <svg viewBox="0 0 36 36"><circle class="ring" cx="18" cy="18" r="15" pathLength="100" /></svg>
+            </span>
+            <span class="station-name">Holding</span>
+          </div>
+        </div>
+
+        <ul class="legend" aria-label="Overlay colours">
+          <li><span class="swatch dom"></span>Dominant hand</li>
+          <li><span class="swatch other"></span>Other hand</li>
+          <li><span class="swatch face"></span>Face</li>
+          <li><span class="swatch body"></span>Body</li>
+          <li><span class="swatch rest"></span>Below the dashed line counts as resting</li>
+        </ul>
+        <pre class="debug" id="debug" hidden>Tracking numbers appear here once the camera is running.</pre>
+      </section>
+
+      <section class="read-col" aria-label="Recognition">
+        <div class="now">
+          <div class="now-main">
+            <span class="now-label" id="now-label" hidden></span>
+            <span class="now-meta" id="now-meta">Waiting for hands</span>
+          </div>
+          <ol class="cands" id="cands" aria-label="Closest matches"></ol>
+          <p class="face-line" id="face-line"></p>
+        </div>
+
+        <div class="transcript-box">
+          <div class="transcript" id="transcript" aria-live="polite" aria-label="Transcript"></div>
+          <div class="toolbar">
+            <button type="button" id="undo" title="Backspace">Undo</button>
+            <button type="button" id="space" title="Space bar">Space</button>
+            <button type="button" id="newline" title="Enter">New line</button>
+            <button type="button" id="copy">Copy</button>
+            <button type="button" id="clear">Clear</button>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Tools">
+          <button type="button" role="tab" id="tab-teach" aria-controls="panel-teach" aria-selected="true">Teach</button>
+          <button type="button" role="tab" id="tab-library" aria-controls="panel-library" aria-selected="false">Library</button>
+          <button type="button" role="tab" id="tab-settings" aria-controls="panel-settings" aria-selected="false">Settings</button>
+          <button type="button" role="tab" id="tab-help" aria-controls="panel-help" aria-selected="false">How it works</button>
+        </div>
+
+        <div class="panel" id="panel-teach" role="tabpanel" aria-labelledby="tab-teach">
+          <form id="teach-form" class="teach-form">
+            <label class="field">
+              <span>What will you sign?</span>
+              <input id="teach-label" list="vocab" autocomplete="off" placeholder="THANK-YOU, or a letter such as A" required />
+            </label>
+            <datalist id="vocab"></datalist>
+            <fieldset class="segmented" aria-label="Type">
+              <label><input type="radio" name="kind" value="sign" checked /><span>Word sign</span></label>
+              <label><input type="radio" name="kind" value="letter" /><span>Letter</span></label>
+            </fieldset>
+            <button type="submit" class="primary" id="record">Record example</button>
+          </form>
+          <div class="capture" id="capture" hidden>
+            <p id="capture-text"></p>
+            <button type="button" id="stop">Stop recording</button>
+          </div>
+          <div class="review" id="review" hidden>
+            <canvas id="review-canvas" aria-label="Replay of the recording"></canvas>
+            <div class="review-body">
+              <p class="review-title" id="review-title"></p>
+              <p id="review-info"></p>
+              <p id="review-similar"></p>
+              <div class="row">
+                <button type="button" class="primary" id="keep">Keep example</button>
+                <button type="button" id="again">Record again</button>
+                <button type="button" id="discard">Discard</button>
+              </div>
+            </div>
+          </div>
+          <p class="teach-help" id="teach-help">
+            Record three to five examples of each sign. Before the countdown ends, put your hands where the sign
+            starts. Sign once at your normal pace, then hold the last position still until recording stops.
+          </p>
+          <p class="teach-msg" id="teach-msg" role="status"></p>
+        </div>
+
+        <div class="panel" id="panel-library" role="tabpanel" aria-labelledby="tab-library" hidden>
+          <div class="row">
+            <button type="button" id="export">Export library</button>
+            <label class="button">Import library<input type="file" id="import" accept="application/json,.json" hidden /></label>
+          </div>
+          <p class="lib-msg" id="lib-msg" role="status"></p>
+          <p class="empty" id="lib-empty">
+            Nothing taught yet. Fingerspelling works without teaching; word signs need examples. Go to Teach to
+            record some.
+          </p>
+          <ul class="lib-list" id="lib-list"></ul>
+        </div>
+
+        <div class="panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+          <form class="settings" id="settings-form">
+            <label class="field">
+              <span>Camera</span>
+              <select id="set-camera"><option value="">Default camera</option></select>
+            </label>
+            <fieldset class="segmented" aria-label="Dominant hand">
+              <legend>Dominant hand</legend>
+              <label><input type="radio" name="dominant" value="right" /><span>Right</span></label>
+              <label><input type="radio" name="dominant" value="left" /><span>Left</span></label>
+            </fieldset>
+            <fieldset class="segmented" aria-label="Tracking">
+              <legend>Tracking</legend>
+              <label><input type="radio" name="backend" value="separate" /><span>Separate hand, body and face models</span></label>
+              <label><input type="radio" name="backend" value="holistic" /><span>One combined model</span></label>
+            </fieldset>
+            <label class="field">
+              <span>Matching <output id="out-sensitivity"></output></span>
+              <input type="range" id="set-sensitivity" min="0.5" max="1.5" step="0.05" />
+              <span class="range-ends" aria-hidden="true"><span>Strict</span><span>Lenient</span></span>
+              <small>Stricter means fewer wrong words but more missed ones.</small>
+            </label>
+            <label class="field">
+              <span>Pause length <output id="out-hold"></output></span>
+              <input type="range" id="set-hold" min="150" max="800" step="10" />
+              <small>How long to keep still before a pause counts. Letters and the end of each sign need one.</small>
+            </label>
+            <label class="check"><input type="checkbox" id="set-face" /> Use facial expressions and head movement</label>
+            <label class="check"><input type="checkbox" id="set-body" /> Use arm and shoulder position</label>
+            <label class="check"><input type="checkbox" id="set-alphabet" /> Built-in fingerspelling alphabet</label>
+            <label class="check"><input type="checkbox" id="set-showface" /> Draw the face outline</label>
+            <label class="check"><input type="checkbox" id="set-mirror" /> Mirror the camera view</label>
+            <label class="check"><input type="checkbox" id="set-debug" /> Show tracking numbers</label>
+          </form>
+        </div>
+
+        <div class="panel help" id="panel-help" role="tabpanel" aria-labelledby="tab-help" hidden>
+          <h2>Signing so it can be read</h2>
+          <ul>
+            <li>Sit so your head, shoulders and hands up to your waist are in view, in even light.</li>
+            <li>Pause briefly at the end of each sign and each fingerspelled letter. The rail under the video turns to Holding when a pause counts.</li>
+            <li>Drop your hands below the dashed line to end a fingerspelled word. A long rest starts a new line.</li>
+          </ul>
+          <h2>Fingerspelling</h2>
+          <p>
+            The SgSL one-handed alphabet is built in. J and Z are read from their movement. If a letter is often
+            misread for you, teach it as a Letter; your examples then replace the built-in version.
+          </p>
+          <h2>Word signs</h2>
+          <p>
+            There is no ready-made SgSL vocabulary, so word signs come from examples you record. Each example
+            keeps the handshapes, where your hands are relative to your face and body, how they move, and your
+            facial expression. Three to five examples of each sign is a good start; record them on different days
+            or in different light if recognition is patchy.
+          </p>
+          <p>
+            Output is SgSL gloss in signing order, such as <q>YESTERDAY TABLE I BUY</q>, not translated English.
+          </p>
+          <h2>Privacy</h2>
+          <p>
+            Tracking runs in your browser. Your examples are stored in this browser only. Use Export to move them to
+            another device or share them.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

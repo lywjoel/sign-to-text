@@ -1,0 +1,30 @@
+{
+  "name": "sign-to-text",
+  "version": "0.1.0",
+  "private": true,
+  "description": "On-device Singapore Sign Language (SgSL) to text in the browser, using the camera and MediaPipe.",
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/fetch-assets.mjs",
+    "predev": "node scripts/fetch-assets.mjs --quiet",
+    "dev": "vite",
+    "dev:phone": "node scripts/fetch-assets.mjs --quiet && vite --host --mode https",
+    "prebuild": "node scripts/fetch-assets.mjs --quiet",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@mediapipe/tasks-vision": "1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "fake-indexeddb": "^6.2.7",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
